@@ -1,0 +1,12 @@
+{
+"name": {"message":"Phantom Shuttle MV3"},
+"copy_successful": {"message":"复制成功"},
+"description": {"message":"即装即用，设置简单，为开发、外贸人员提供的模拟多地点网速测试插件."},
+"error_code": {"message":"错误代码"},
+"error_network": {"message":"无法连接到我们的数据中心."},
+"error_button": {"message":"点击这里"},
+"url_domain": {"message": "phantomshuttle.space"},
+"copyright": {"message":"phantomshuttle.space"},
+"check_proxy_config_title": {"message":"注意:浏览器代理被其它扩展程序控制."},
+"check_proxy_config_body": {"message":"<p class=\"alert alert-danger\"> 请检查您的浏览器扩展管理,停用其它代理插件.<a href=\"check.html\" class=\"btn btn-warning\">点击查看</a></p>"}
+}

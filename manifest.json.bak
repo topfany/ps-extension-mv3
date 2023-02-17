@@ -1,0 +1,27 @@
+{
+  "update_url": "https://clients2.google.com/service/update2/crx",
+  "manifest_version": 2,
+  "name": "__MSG_name__",
+  "description": "__MSG_description__",
+  "version": "1.0.9",
+  "minimum_chrome_version": "17.0.0",
+  "default_locale": "zh_CN",
+  "icons": {
+    "16":"assets/img/logos/logo.png",
+    "48":"assets/img/logos/logo.png",
+    "128":"assets/img/logos/logo.png"
+  },
+  "homepage_url": "https://phantomshuttle.space/",
+  "options_page": "options.html",
+  "browser_action": {
+    "default_title": "__MSG_name__",
+    "default_icon": "assets/img/logos/logo.png",
+    "default_popup": "popup.html"
+  },
+  "permissions": ["management", "webRequest", "webRequestBlocking", "proxy", "tabs", "<all_urls>"],
+  "background": {
+    "scripts": ["assets/js/background.min.js"],
+    "persistent": true
+  },
+  "web_accessible_resources": ["assets/img/logos/logo.png"]
+}
