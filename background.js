@@ -1,4 +1,4 @@
-// test commit
+// test commit 2
 chrome.webRequest.onAuthRequired.addListener(
     async function (details, callbackFn) {
         var config = {
