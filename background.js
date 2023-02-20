@@ -1,4 +1,5 @@
-
+const manifest = chrome.runtime.getManifest();
+const doh_servers = ["https://api.phantomshuttle.space/api/v1/resolve"];
 
 function set_proxy_system() {
     chrome.proxy.settings.set({
@@ -47,11 +48,10 @@ chrome.action.onClicked.addListener((tab) => {
     // chrome.runtime.onMessage.addListener(handle_message);
     // session_start();
 
-console.log('get proxy setting');
-
 chrome.proxy.settings.get(
     {'incognito': false},
     function(config) {
+        console.log("get proxy settings");
         console.log(JSON.stringify(config));
     }
 );
@@ -81,9 +81,16 @@ function reddenPage() {
 );*/
 
 // 如何set数组？
-chrome.storage.local.set({"api_urls": ["https://api.phantomshuttle.space/api/v1"]}).then(() => {console.log('value is set to ' + ["https://api.phantomshuttle.space/api/v1"])});
-chrome.storage.local.set({"pending_requests": []});
-chrome.storage.local.set({"_session": null});
+// chrome.storage.local.set({"api_urls": ["https://api.phantomshuttle.space/api/v1","https://api.redsuns.live/api/api/v1"]});
+// chrome.storage.local.get("api_urls", e=>{console.log(e.api_urls)});
+// get_local_data("api_urls");
+// chrome.storage.local.set({"pending_requests": []});
+// chrome.storage.local.set({"_session": null});
+
+const api_urls = ["https://api.phantomshuttle.space/api/v1","https://api.redsuns.live/api/api/v1"];
+const _tester_data = {};
+const _session = null;
+const pending_requests = [];
 
 function request_proxy_auth(a) {
     const pending_requests = chrome.storage.local.get(['pending_requests']);
@@ -101,12 +108,23 @@ function get_session() {
 }
 
 function set_local_data(a, b) {
-    return chrome.storage.local.set({a: JSON.stringify(b)})
+    // console.log("a: " + a.toString());
+    // console.log("b: " + Array.isArray(b));
+    chrome.storage.local.set({[a] : JSON.stringify(b)});
 }
 
-function get_local_data(a) {
+async function get_local_data(a) {
     console.log('get local data of: ' + a);
-    chrome.storage.local.get([a]).then((result) => {console.log("value currently is " + result.key)});
+    chrome.storage.local.get(a, (e) => {console.log(e[a])});
+    // chrome.storage.local.get(a, e=>{
+    //     // val = e[a];
+    //     return JSON.parse(e[a]);
+    // });
+    return new Promise(resolve => {
+        chrome.storage.local.get(a, e => {
+            resolve(e[a]);
+        })
+    })
     // if (val = chrome.storage.local.get([a])) return JSON.parse(val)
 }
 
@@ -134,7 +152,9 @@ function get_user_proxy_auth(a) {
 }
 
 function request_completed(b) {
-    const pending_requests = chrome.storage.local.get(['pending_requests']);
+    chrome.storage.local.get('pending_requests', e=> {
+        const pending_requests = e.pending_requests;
+    });
     var a = pending_requests.indexOf(b.requestId);
     a > -1 && pending_requests.splice(a, 1)
 }
@@ -159,22 +179,98 @@ function post(e, b = null, c = null, d = null, f = 15) {
     } : d && (a.error = d), fetch(a)
 }
 
+function get_time() {
+    return new Date().getTime() / 1e3
+}
 
+function getlang(a) {
+    return chrome.i18n.getMessage(a)
+}
 
 function api_url(b) {
-    var //c = get_local_info(),
+    var c = get_local_info(),
         a = get_local_data("api_urls");
-    const api_urls = chrome.storage.local.get(['api_urls']);
+    // const api_urls = chrome.storage.local.get(['api_urls']);
     // return a && 0 != a.length || (set_local_data("api_urls", api_urls), a = get_local_data("api_urls")), a.shift() + b + "?" + $.param(c)
+    return a && 0 !== a.length || (set_local_data("api_urls", api_urls), a = get_local_data("api_urls")), a.shift() + b + "?" + $.param(c)
+}
+
+function get_proxy_info(a) {
+    return get_local_data("proxy");
+}
+
+function get_local_info() {
+    var a = {};
+    return a.token = get_token().then(e=>{e.value}), a.version = manifest.version, /*a.lang = window.navigator.language,*/ a.session_sync_id = get_session_sync_id(), a.is_webtable_mode = is_webtable_mode(), a.is_pac_mode = is_pac_mode(), a.is_overal_mode = is_overal_mode(), a.is_closed = is_closed(), a.proxy = get_proxy_info(), a.internal = get_local_data("internal"), a.pk = get_pk(), a["_t"] = get_time(), a
+}
+
+function set_token(a) {
+    // return localStorage.setItem("token", a)
+    chrome.storage.local.set({"token": a});
+}
+
+async function get_token() {
+    // return localStorage.getItem("token")
+    // chrome.storage.local.get("token", e=>{
+    //     return e.token;
+    // });
+    return new Promise(resolve => {
+        chrome.storage.local.get("token", e => {
+            resolve(e.token);
+        })
+    })
+}
+
+function set_session_sync_id(a) {
+    chrome.storage.local.set({"session_sync_id": a});
+}
+
+async function get_session_sync_id() {
+    // return get_local_data("session_sync_id");
+    // chrome.storage.local.get("session_sync_id", e=>{
+    //     return e.session_sync_id;
+    // });
+    return new Promise(resolve => {
+        chrome.storage.local.get("session_sync_id", e => {
+            resolve(e.session_sync_id);
+        })
+    })
+}
+
+function is_pac_mode() {
+    return (session = get_session()) && session.hasOwnProperty("is_pac_mode") ? session.is_pac_mode : -1
+}
+
+function is_overal_mode() {
+    return (session = get_session()) && session.hasOwnProperty("is_overal_mode") ? session.is_overal_mode : -1
+}
+
+function is_closed() {
+    return (session = get_session()) && session.hasOwnProperty("is_closed") ? session.is_closed : -1
+}
+
+function is_webtable_mode() {
+    return (session = get_session()) && session.hasOwnProperty("is_webtable_mode") ? session.is_webtable_mode : -1
 }
 
 function set_session_setup_status(a) {
-    chrome.storage.local.set({"session_setup_status": a})
+    chrome.storage.local.set({"session_setup_status": a});
     // localStorage.setItem("session_setup_status", a)
 }
 
 function set_pk(a) {
     chrome.storage.local.set({"pk": a});
+}
+
+async function get_pk() {
+    // chrome.storage.local.get("pk", e=>{
+    //     return e.pk;
+    // });
+    return new Promise(resolve => {
+        chrome.storage.local.get("pk", e => {
+            resolve(e.pk);
+        })
+    })
 }
 
 function handle_background(a) {
