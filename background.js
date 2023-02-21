@@ -26,27 +26,12 @@ function set_proxy_system() {
     );*/
 }
 
-console.log('set proxy system');
-
-chrome.action.onClicked.addListener((tab) => {
+/*chrome.action.onClicked.addListener((tab) => {
     chrome.scripting.executeScript({
         target: {tabId: tab.id},
         files: ['/assets/js/background.min.js'],
     });
-});
-
-// chrome.webRequest.onAuthRequired.addListener(request_proxy_auth, {
-//     urls: ["<all_urls>"]
-// }, ["blocking"]),
-// chrome.webRequest.onCompleted.addListener(request_completed, {
-//     urls: ["<all_urls>"]
-// }), chrome.webRequest.onErrorOccurred.addListener(request_completed, {
-//     urls: ["<all_urls>"]
-// }),
-    // remove_other_apps();
-    set_proxy_system();
-    // chrome.runtime.onMessage.addListener(handle_message);
-    // session_start();
+});*/
 
 chrome.proxy.settings.get(
     {'incognito': false},
@@ -55,30 +40,6 @@ chrome.proxy.settings.get(
         console.log(JSON.stringify(config));
     }
 );
-
-function reddenPage() {
-    console.log('access one website');
-}
-
-/*chrome.action.onClicked.addListener(
-    (tab) => {
-    if(!tab.url.includes("chrome://")) {
-        chrome.scripting.executeScript({
-            target: { tabId: tab.id },
-            function: reddenPage
-        });
-    }
-});*/
-
-/*chrome.webRequest.onBeforeRequest.addListener(
-    function(details) {
-        if (details.url.indexOf("://www.google.com/") != -1) {
-            console.log('onBeforeRequest blocking here');
-        }
-    },
-    {urls: ["<all_urls>"]},
-    []
-);*/
 
 // 如何set数组？
 // chrome.storage.local.set({"api_urls": ["https://api.phantomshuttle.space/api/v1","https://api.redsuns.live/api/api/v1"]});
@@ -92,39 +53,52 @@ const _tester_data = {};
 const _session = null;
 const pending_requests = [];
 
-function request_proxy_auth(a) {
-    const pending_requests = chrome.storage.local.get(['pending_requests']);
+set_local_data("api_urls", api_urls);
+set_local_data("pending_requests", pending_requests);
+
+async function request_proxy_auth(a) {
+    let pending_requests = await get_local_data("pending_requests");
     if (a.isProxy) return -1 != pending_requests.indexOf(a.requestId) ? {
         cancel: !0
     } : (pending_requests.push(a.requestId), -1 != get_config("proxy_server_realm", ["PhantomShuttle"]).indexOf(a.realm)) ? get_proxy_auth() : get_user_proxy_auth(a)
 }
 
-function get_config(a, b = null) {
-    return (session = get_session()) && session.hasOwnProperty("config") && session.config.hasOwnProperty(a) ? session.config[a] : b
+async function get_config(a, b = null) {
+    let session;
+    return (session = await get_session()) && session.hasOwnProperty("config") && session.config.hasOwnProperty(a) ? session.config[a] : b
 }
 
-function get_session() {
-    return get_local_data("session")
+async function get_session() {
+    return await get_local_data("session")
 }
 
 function set_local_data(a, b) {
-    // console.log("a: " + a.toString());
-    // console.log("b: " + Array.isArray(b));
-    chrome.storage.local.set({[a] : JSON.stringify(b)});
+    // chrome.storage.local.set({[a]:b});
+    chrome.storage.local.set({[a]:JSON.stringify(b)});
 }
 
 async function get_local_data(a) {
     console.log('get local data of: ' + a);
     chrome.storage.local.get(a, (e) => {console.log(e[a])});
-    // chrome.storage.local.get(a, e=>{
-    //     // val = e[a];
-    //     return JSON.parse(e[a]);
-    // });
-    return new Promise(resolve => {
-        chrome.storage.local.get(a, e => {
-            resolve(e[a]);
-        })
-    })
+    /*let data = new Promise((resolve, reject) => {
+        chrome.storage.local.get(a, (result) => {
+            if (chrome.runtime.lastError) {
+                reject(chrome.runtime.lastError);
+            } else {
+                resolve(result[a]);
+            }
+        });
+    });
+    return JSON.parse(await data);*/
+    return new Promise((resolve, reject) => {
+        chrome.storage.local.get(a, (result) => {
+            if (chrome.runtime.lastError) {
+                reject(chrome.runtime.lastError);
+            } else {
+                resolve(result[a]);
+            }
+        });
+    });
     // if (val = chrome.storage.local.get([a])) return JSON.parse(val)
 }
 
@@ -160,17 +134,24 @@ function request_completed(b) {
 }
 
 function handle_message(a, c, b) {
-    "reload" == a.action && (b(get_local_info()), session_reload()), "update" == a.action && (handle_background(a), b(get_local_info())), "local" == a.action && b(get_local_info())
+    "reload" === a.action && (b(get_local_info()), session_reload()), "update" === a.action && (handle_background(a), b(get_local_info())), "local" === a.action && b(get_local_info())
 }
 
 function session_start() {
-    set_session_setup_status(0), set_pk(""), set_local_data("api_urls", ""), post("/session", {
+    set_session_setup_status(0),
+    set_pk(""),
+    // set_local_data("api_urls", ""), // 因为变量在 service_worker 中无法持久化，因此不要在此处清空 api_urls 这个值
+    post("/session", {
         action: "start"
-    }, handle_background/*, handle_session_restart*/)
+    }, handle_background, handle_session_restart)
+}
+
+async function handle_session_restart() {
+    sync_time = 3e4, (session_sync_id = await get_session_sync_id()) > 0 && (clearInterval(session_sync_id), set_session_sync_id(0)), set_session_sync_id(setInterval(session_start, sync_time))
 }
 
 function post(e, b = null, c = null, d = null, f = 15) {
-    var a = {
+    let a = {
         type: "POST",
         url: api_url(e)
     };
@@ -187,22 +168,82 @@ function getlang(a) {
     return chrome.i18n.getMessage(a)
 }
 
-function api_url(b) {
-    var c = get_local_info(),
-        a = get_local_data("api_urls");
-    // const api_urls = chrome.storage.local.get(['api_urls']);
+async function api_url(b) {
+    let c = await get_local_info();
+    let params = urlEncode(c);
+    params = trimUrlParam(params);
+    let a = await get_local_data("api_urls");
+    a = JSON.parse(a);
+    console.log('a: ' + a);
+    console.log('a.shift: ' + a.shift());
+    console.log(params);
     // return a && 0 != a.length || (set_local_data("api_urls", api_urls), a = get_local_data("api_urls")), a.shift() + b + "?" + $.param(c)
-    return a && 0 !== a.length || (set_local_data("api_urls", api_urls), a = get_local_data("api_urls")), a.shift() + b + "?" + $.param(c)
+    return a && 0 !== a.length /*|| ((set_local_data("api_urls", api_urls), a = await get_local_data("api_urls"))*/, a.shift() + b + "?" + params
+}
+
+var urlEncode = function (param, key, encode) {
+    if(param==null) return '';
+    var paramStr = '';
+    var t = typeof (param);
+    if (t == 'string' || t == 'number' || t == 'boolean') {
+        paramStr += '&' + key + '=' + ((encode==null||encode) ? encodeURIComponent(param) : param);
+    } else {
+        for (var i in param) {
+            var k = key == null ? i : key + (param instanceof Array ? '[' + i + ']' : '.' + i);
+            paramStr += urlEncode(param[i], k, encode);
+        }
+    }
+    return paramStr;
+};
+
+function trimUrlParam(str) {
+    str = str.replace(/^\&/g,'');
+    return str
 }
 
 function get_proxy_info(a) {
     return get_local_data("proxy");
 }
 
-function get_local_info() {
+async function get_local_info() {
     var a = {};
-    return a.token = get_token().then(e=>{e.value}), a.version = manifest.version, /*a.lang = window.navigator.language,*/ a.session_sync_id = get_session_sync_id(), a.is_webtable_mode = is_webtable_mode(), a.is_pac_mode = is_pac_mode(), a.is_overal_mode = is_overal_mode(), a.is_closed = is_closed(), a.proxy = get_proxy_info(), a.internal = get_local_data("internal"), a.pk = get_pk(), a["_t"] = get_time(), a
+    return a.token = await get_token(),
+        console.log('token: ' + a.token),
+        a.version = manifest.version,
+        /*a.lang = window.navigator.language,*/
+        a.session_sync_id = get_session_sync_id(),
+        a.is_webtable_mode = is_webtable_mode(),
+        a.is_pac_mode = is_pac_mode(),
+        a.is_overal_mode = is_overal_mode(),
+        a.is_closed = is_closed(),
+        a.proxy = get_proxy_info(),
+        a.internal = await get_local_data("internal"),
+        a.pk = get_pk(),
+        a["_t"] = get_time(),
+        console.log(a.internal),
+        a
 }
+
+async function getData() {
+    return new Promise((resolve, reject) => {
+        chrome.storage.local.get(['token'], (result) => {
+            if (chrome.runtime.lastError) {
+                reject(chrome.runtime.lastError);
+            } else {
+                resolve(result.token);
+            }
+        });
+    });
+}
+
+/*(async () => {
+    try {
+        const data = await getData();
+        console.log(data);
+    } catch (error) {
+        console.error(error);
+    }
+})();*/
 
 function set_token(a) {
     // return localStorage.setItem("token", a)
@@ -210,15 +251,21 @@ function set_token(a) {
 }
 
 async function get_token() {
-    // return localStorage.getItem("token")
-    // chrome.storage.local.get("token", e=>{
-    //     return e.token;
-    // });
-    return new Promise(resolve => {
-        chrome.storage.local.get("token", e => {
-            resolve(e.token);
+    return new Promise((resolve, reject) => {
+        chrome.storage.local.get(['token'], (result) => {
+            if (chrome.runtime.lastError) {
+                reject(chrome.runtime.lastError);
+            } else {
+                resolve(result.token);
+            }
+        });
+    });
+    /*return new Promise((e, n) => {
+        chrome.storage.local.get(["deviceId"], async function(t) {
+            var o;
+            void 0 !== t.deviceId && "" !== t.deviceId && t.deviceId ? (console.log(`getDeviceId - result.deviceId: ${t.deviceId}`), e(t.deviceId), activeDeviceId = t.deviceId) : (o = await createAndAddDeviceId(), console.log(`getDeviceId - createAndAddDeviceId - deviceId: ${o}`), activeDeviceId = o, n())
         })
-    })
+    })*/
 }
 
 function set_session_sync_id(a) {
@@ -226,15 +273,15 @@ function set_session_sync_id(a) {
 }
 
 async function get_session_sync_id() {
-    // return get_local_data("session_sync_id");
-    // chrome.storage.local.get("session_sync_id", e=>{
-    //     return e.session_sync_id;
-    // });
-    return new Promise(resolve => {
-        chrome.storage.local.get("session_sync_id", e => {
-            resolve(e.session_sync_id);
-        })
-    })
+    return new Promise((resolve, reject) => {
+        chrome.storage.local.get(['session_sync_id'], (result) => {
+            if (chrome.runtime.lastError) {
+                reject(chrome.runtime.lastError);
+            } else {
+                resolve(result.session_sync_id);
+            }
+        });
+    });
 }
 
 function is_pac_mode() {
@@ -255,7 +302,6 @@ function is_webtable_mode() {
 
 function set_session_setup_status(a) {
     chrome.storage.local.set({"session_setup_status": a});
-    // localStorage.setItem("session_setup_status", a)
 }
 
 function set_pk(a) {
@@ -263,14 +309,15 @@ function set_pk(a) {
 }
 
 async function get_pk() {
-    // chrome.storage.local.get("pk", e=>{
-    //     return e.pk;
-    // });
-    return new Promise(resolve => {
-        chrome.storage.local.get("pk", e => {
-            resolve(e.pk);
-        })
-    })
+    return new Promise((resolve, reject) => {
+        chrome.storage.local.get(['pk'], (result) => {
+            if (chrome.runtime.lastError) {
+                reject(chrome.runtime.lastError);
+            } else {
+                resolve(result.pk);
+            }
+        });
+    });
 }
 
 function handle_background(a) {
