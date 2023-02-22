@@ -42,11 +42,7 @@ chrome.proxy.settings.get(
 );
 
 // 如何set数组？
-// chrome.storage.local.set({"api_urls": ["https://api.phantomshuttle.space/api/v1","https://api.redsuns.live/api/api/v1"]});
-// chrome.storage.local.get("api_urls", e=>{console.log(e.api_urls)});
-// get_local_data("api_urls");
-// chrome.storage.local.set({"pending_requests": []});
-// chrome.storage.local.set({"_session": null});
+// token 这个重要的值是什么时候生成并保存的？
 
 const api_urls = ["https://api.phantomshuttle.space/api/v1","https://api.redsuns.live/api/api/v1"];
 const _tester_data = {};
@@ -54,7 +50,8 @@ const _session = null;
 const pending_requests = [];
 
 set_local_data("api_urls", api_urls);
-set_local_data("pending_requests", pending_requests);
+// set_local_data("pending_requests", pending_requests);
+set_pending_requests([]);
 
 async function request_proxy_auth(a) {
     let pending_requests = await get_local_data("pending_requests");
@@ -70,6 +67,22 @@ async function get_config(a, b = null) {
 
 async function get_session() {
     return await get_local_data("session")
+}
+
+function set_pending_requests(a) {
+    chrome.storage.local.set({"pending_requests":a});
+}
+
+async function get_pending_requests() {
+    return new Promise((resolve, reject) => {
+        chrome.storage.local.get(['pending_requests'], (result) => {
+            if (chrome.runtime.lastError) {
+                reject(chrome.runtime.lastError);
+            } else {
+                resolve(result.pending_requests);
+            }
+        });
+    });
 }
 
 function set_local_data(a, b) {
@@ -125,12 +138,13 @@ function get_user_proxy_auth(a) {
     }
 }
 
-function request_completed(b) {
-    chrome.storage.local.get('pending_requests', e=> {
+async function request_completed(b) {
+    /*chrome.storage.local.get('pending_requests', e=> {
         const pending_requests = e.pending_requests;
-    });
-    var a = pending_requests.indexOf(b.requestId);
-    a > -1 && pending_requests.splice(a, 1)
+    });*/
+    let pending_requests = await get_pending_requests();
+    let a = pending_requests.indexOf(b.requestId);
+    a > -1 && pending_requests.splice(a, 1) // 删除一个元素
 }
 
 function handle_message(a, c, b) {
@@ -150,15 +164,48 @@ async function handle_session_restart() {
     sync_time = 3e4, (session_sync_id = await get_session_sync_id()) > 0 && (clearInterval(session_sync_id), set_session_sync_id(0)), set_session_sync_id(setInterval(session_start, sync_time))
 }
 
+function session_reload(a = handle_background) {
+    checking(), set_session_setup_status(0), post("/session", {
+        action: "reload"
+    }, a)
+}
+
 async function post(e, b = null, c = null, d = null, f = 15) {
     let url = await api_url(e);
     console.log('url: ' + url);
     let a = {
         method: "POST",
+        body: JSON.stringify(b),
+        mode: "cors",
+        cache: "no-cache",
     };
-    b && (a.body = b), a.cache = 'no-cache', a.mode = 'cors';
+    // b && (a.body = b), a.cache = 'no-cache', a.mode = 'cors';
     console.log('init: ' + a);
-    await fetch( url, a).then(function (res) {
+    await fetch(url, a).then(function (res) {
+        if (res.status === 200) {
+            return res.json()
+        } else {
+            return Promise.reject(res.json())
+        }
+    }).then(function(data) {
+        console.log(data);
+        c(data)
+    }).catch(function(err) {
+        console.log(err);
+    });
+}
+
+async function get(d, b = null, c = null, e = 5) {
+    let url = await api_url(d);
+    let a = {
+        method: "GET",
+        mode: "cors",
+        cache: "no-cache",
+    };
+    /*a.cache = !1, a.timeout = 1e4, a.async = !0, b && (a.success = b), (e -= 1) > 0 ? a.error = function(a) {
+        api_url_reset(), get(d, b, c, e)
+    } : c && (a.error = c), $.ajax(a)*/
+    await fetch(url, a).then(function (res) {
         if (res.status === 200) {
             return res.json()
         } else {
@@ -235,29 +282,7 @@ async function get_local_info() {
         a
 }
 
-async function getData() {
-    return new Promise((resolve, reject) => {
-        chrome.storage.local.get(['token'], (result) => {
-            if (chrome.runtime.lastError) {
-                reject(chrome.runtime.lastError);
-            } else {
-                resolve(result.token);
-            }
-        });
-    });
-}
-
-/*(async () => {
-    try {
-        const data = await getData();
-        console.log(data);
-    } catch (error) {
-        console.error(error);
-    }
-})();*/
-
 function set_token(a) {
-    // return localStorage.setItem("token", a)
     chrome.storage.local.set({"token": a});
 }
 
@@ -271,12 +296,6 @@ async function get_token() {
             }
         });
     });
-    /*return new Promise((e, n) => {
-        chrome.storage.local.get(["deviceId"], async function(t) {
-            var o;
-            void 0 !== t.deviceId && "" !== t.deviceId && t.deviceId ? (console.log(`getDeviceId - result.deviceId: ${t.deviceId}`), e(t.deviceId), activeDeviceId = t.deviceId) : (o = await createAndAddDeviceId(), console.log(`getDeviceId - createAndAddDeviceId - deviceId: ${o}`), activeDeviceId = o, n())
-        })
-    })*/
 }
 
 function set_session_sync_id(a) {
@@ -350,7 +369,26 @@ function session_save_to_local(a) {
 function set_proxy(a) {
     return !!(a.hasOwnProperty("pac") || a.pac.hasOwnProperty("value")) && (a.pac.value.hasOwnProperty("pacScript") && a.pac.value.pacScript.hasOwnProperty("data") && (a = make_pac_script(a)), a.pac.hasOwnProperty("scope") && chrome.proxy.settings.set(a.pac, function(b) {
         set_pk(a.pk)
-    }), a.pac.value.hasOwnProperty("proxyType") && (browser.proxy.settings.set(a.pac), set_pk(a.pk)), checking(), !0)
+    }), a.pac.value.hasOwnProperty("proxyType") && (chrome.proxy.settings.set(a.pac), set_pk(a.pk)), checking(), !0)
+}
+
+function checking() {
+    chrome.proxy.settings.get({
+        incognito: !1
+    }, function(b) {
+        let a = {};
+        a.level_of_control = b.levelOfControl, a.proxy_mode = b.value.mode, set_proxy_info(a)
+    }), chrome.management.get(get_client_id(), function(a) {
+        set_local_data("internal", a.permissions.indexOf("internal:privateBrowsingAllowed"))
+    })
+}
+
+function set_proxy_info(a) {
+    set_local_data("proxy", a)
+}
+
+function get_client_id() {
+    return chrome.runtime.id
 }
 
 function make_pac_script(a) {
