@@ -150,14 +150,25 @@ async function handle_session_restart() {
     sync_time = 3e4, (session_sync_id = await get_session_sync_id()) > 0 && (clearInterval(session_sync_id), set_session_sync_id(0)), set_session_sync_id(setInterval(session_start, sync_time))
 }
 
-function post(e, b = null, c = null, d = null, f = 15) {
+async function post(e, b = null, c = null, d = null, f = 15) {
+    let url = await api_url(e);
+    console.log('url: ' + url);
     let a = {
-        type: "POST",
-        url: api_url(e)
+        method: "POST",
     };
-    b && (a.data = b), a.cache = !1, a.timeout = 1e4, a.async = !0, c && (a.success = c), (f -= 1) > 0 ? a.error = function(a) {
-        api_url_reset(), post(e, b, c, d, f)
-    } : d && (a.error = d), fetch(a)
+    b && (a.body = b), a.cache = 'no-cache', a.mode = 'cors';
+    console.log('init: ' + a);
+    await fetch( url, a).then(function (res) {
+        if (res.status === 200) {
+            return res.json()
+        } else {
+            return Promise.reject(res.json())
+        }
+    }).then(function(data) {
+        console.log(data);
+    }).catch(function(err) {
+        console.log(err);
+    });
 }
 
 function get_time() {
@@ -175,7 +186,7 @@ async function api_url(b) {
     let a = await get_local_data("api_urls");
     a = JSON.parse(a);
     console.log('a: ' + a);
-    console.log('a.shift: ' + a.shift());
+    // console.log('a.shift: ' + a.shift());
     console.log(params);
     // return a && 0 != a.length || (set_local_data("api_urls", api_urls), a = get_local_data("api_urls")), a.shift() + b + "?" + $.param(c)
     return a && 0 !== a.length /*|| ((set_local_data("api_urls", api_urls), a = await get_local_data("api_urls"))*/, a.shift() + b + "?" + params
