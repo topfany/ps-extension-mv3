@@ -26,13 +26,6 @@ function set_proxy_system() {
     );*/
 }
 
-/*chrome.action.onClicked.addListener((tab) => {
-    chrome.scripting.executeScript({
-        target: {tabId: tab.id},
-        files: ['/assets/js/background.min.js'],
-    });
-});*/
-
 chrome.proxy.settings.get(
     {'incognito': false},
     function(config) {
@@ -53,11 +46,37 @@ set_local_data("api_urls", api_urls);
 // set_local_data("pending_requests", pending_requests);
 set_pending_requests([]);
 
-async function request_proxy_auth(a) {
-    let pending_requests = await get_local_data("pending_requests");
-    if (a.isProxy) return -1 != pending_requests.indexOf(a.requestId) ? {
+async function request_proxy_auth(requestDetails) {
+    /*let pending_requests = await get_local_data("pending_requests");
+    let proxy_server_realm = await get_config("proxy_server_realm", ["PhantomShuttle"]);
+    if (a.isProxy) return -1 !== pending_requests.indexOf(a.requestId) ? {
         cancel: !0
-    } : (pending_requests.push(a.requestId), -1 != get_config("proxy_server_realm", ["PhantomShuttle"]).indexOf(a.realm)) ? get_proxy_auth() : get_user_proxy_auth(a)
+    } : (pending_requests.push(a.requestId), -1 !== proxy_server_realm.indexOf(a.realm)) ? get_proxy_auth() : get_user_proxy_auth(a)*/
+
+    // new code
+    let pending_requests = await get_local_data("pending_requests");
+    let realm = await get_config("proxy_server_realm", ["PhantomShuttle"]);
+    console.log('pending_requests: ' + pending_requests);
+    console.log('realm: ' + realm);
+    if (!requestDetails.isProxy) {
+        return;
+    }
+    if (pending_requests.indexOf(requestDetails.requestId) != -1) {
+        return {
+            cancel: true
+        };
+    }
+    pending_requests.push(requestDetails.requestId);
+    set_pending_requests(pending_requests);
+    // var realm = get_config('proxy_server_realm', ['Ghelper']);
+    if (realm.indexOf(requestDetails.realm) != -1) {
+        return get_proxy_auth();
+    } else {
+        return get_user_proxy_auth(requestDetails);
+    }
+    return {
+        cancel: true
+    };
 }
 
 async function get_config(a, b = null) {
@@ -121,13 +140,14 @@ function get_proxy_auth() {
     }
 }
 
-function get_chrome_session() {
-    const _session = chrome.storage.local.get(['_session']);
+async function get_chrome_session() {
+    // const _session = chrome.storage.local.get(['_session']);
+    const _session = await get_session();
     return _session || (chrome.storage.local.set({'_session': get_session()})), _session
 }
 
-function get_user_proxy_auth(a) {
-    if ((session = get_session()).hasOwnProperty("user_proxy_auth")) {
+async function get_user_proxy_auth(a) {
+    if ((session = await get_session()).hasOwnProperty("user_proxy_auth")) {
         var c = a.challenger.host,
             d = a.challenger.port,
             b = c + ":" + d;
@@ -354,12 +374,38 @@ function handle_background(a) {
     a.hasOwnProperty("session") && session_setup(a.session)
 }
 
-function session_setup(a) {
-    var b = null;
+function session_setup(session) {
+    /*var b = null;
     a.hasOwnProperty("proxy") && (b = a.proxy, delete a.proxy);
     chrome.storage.local.set({"_session": a});
     session_save_to_local(a);
-    b && set_proxy(b);
+    b && set_proxy(b);*/
+
+    let proxy = null;
+    if (session.hasOwnProperty('proxy')) {
+        proxy = session.proxy;
+        delete session['proxy'];
+    }
+    let tester = null;
+    if (session.hasOwnProperty('tester')) {
+        tester = session.tester;
+        delete session['tester'];
+    }
+    let _session = session;
+    // 相当于调用了 set_token 方法
+    if (session.hasOwnProperty('token')) {
+        chrome.storage.local.set({
+            token: session.token.token
+        });
+    }
+    session_save_to_local(_session);
+    if (proxy) {
+        set_proxy(proxy);
+    }
+    if (tester) {
+        // test_server(tester);
+    }
+    set_session_setup_status(1);
 }
 
 function session_save_to_local(a) {
