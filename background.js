@@ -54,8 +54,11 @@ async function request_proxy_auth(requestDetails) {
     } : (pending_requests.push(a.requestId), -1 !== proxy_server_realm.indexOf(a.realm)) ? get_proxy_auth() : get_user_proxy_auth(a)*/
 
     // new code
-    let pending_requests = await get_local_data("pending_requests");
-    let realm = await get_config("proxy_server_realm", ["PhantomShuttle"]);
+    // let pending_requests = await get_local_data("pending_requests");
+    // let realm = await get_config("proxy_server_realm", ["PhantomShuttle"]);
+
+    return get_proxy_auth();
+
     console.log('pending_requests: ' + pending_requests);
     console.log('realm: ' + realm);
     if (!requestDetails.isProxy) {
@@ -79,13 +82,20 @@ async function request_proxy_auth(requestDetails) {
     };
 }
 
-async function get_config(a, b = null) {
-    let session;
-    return (session = await get_session()) && session.hasOwnProperty("config") && session.config.hasOwnProperty(a) ? session.config[a] : b
+async function get_config(name, default_value= null) {
+    // let session;
+    // return (session = await get_session()) && session.hasOwnProperty("config") && session.config.hasOwnProperty(a) ? session.config[a] : b
+
+    let session = await get_session();
+    if (session && session.hasOwnProperty('config') && session.config.hasOwnProperty(name)) {
+        return session['config'][name];
+    }
+    return default_value;
 }
 
 async function get_session() {
-    return await get_local_data("session")
+    return await get_local_data("session");
+    // session = JSON.parse(session);
 }
 
 function set_pending_requests(a) {
@@ -105,23 +115,13 @@ async function get_pending_requests() {
 }
 
 function set_local_data(a, b) {
-    // chrome.storage.local.set({[a]:b});
-    chrome.storage.local.set({[a]:JSON.stringify(b)});
+    chrome.storage.local.set({[a]:b});
+    // chrome.storage.local.set({[a]:JSON.stringify(b)});
 }
 
 async function get_local_data(a) {
     console.log('get local data of: ' + a);
     chrome.storage.local.get(a, (e) => {console.log(e[a])});
-    /*let data = new Promise((resolve, reject) => {
-        chrome.storage.local.get(a, (result) => {
-            if (chrome.runtime.lastError) {
-                reject(chrome.runtime.lastError);
-            } else {
-                resolve(result[a]);
-            }
-        });
-    });
-    return JSON.parse(await data);*/
     return new Promise((resolve, reject) => {
         chrome.storage.local.get(a, (result) => {
             if (chrome.runtime.lastError) {
@@ -134,16 +134,29 @@ async function get_local_data(a) {
     // if (val = chrome.storage.local.get([a])) return JSON.parse(val)
 }
 
-function get_proxy_auth() {
-    return (session = get_chrome_session()) && session.hasOwnProperty("token") && session.token.hasOwnProperty("ghelper_proxy_auth") ? session.token.ghelper_proxy_auth : {
+async function get_proxy_auth() {
+    /*return (session = get_chrome_session()) && session.hasOwnProperty("token") && session.token.hasOwnProperty("ghelper_proxy_auth") ? session.token.ghelper_proxy_auth : {
         cancel: !0
+    }*/
+    // let session = await get_chrome_session();
+    // let session = await get_session();
+    let session = await get_local_data("session");
+    if (session && session.hasOwnProperty("token") && session.token.hasOwnProperty("ghelper_proxy_auth")) {
+        return session.token.ghelper_proxy_auth;
     }
+    return {
+        cancel: true
+    };
 }
 
 async function get_chrome_session() {
     // const _session = chrome.storage.local.get(['_session']);
-    const _session = await get_session();
-    return _session || (chrome.storage.local.set({'_session': get_session()})), _session
+    // const _session = await get_session();
+    // return _session || (chrome.storage.local.set({'_session': get_session()})), _session
+    if (!_session) {
+        var _session = await get_session();
+    }
+    return _session;
 }
 
 async function get_user_proxy_auth(a) {
@@ -251,7 +264,7 @@ async function api_url(b) {
     let params = urlEncode(c);
     params = trimUrlParam(params);
     let a = await get_local_data("api_urls");
-    a = JSON.parse(a);
+    // a = JSON.parse(a);
     console.log('a: ' + a);
     // console.log('a.shift: ' + a.shift());
     console.log(params);
