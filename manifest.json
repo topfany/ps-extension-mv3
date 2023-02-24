@@ -25,6 +25,7 @@
     "webRequest",
     "webRequestAuthProvider",
     "proxy",
+    "alarms",
     "tabs",
     "storage",
     "scripting"
