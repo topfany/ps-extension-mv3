@@ -48,49 +48,19 @@ set_local_data("pending_requests", pending_requests);
 // set_pending_requests([]);
 
 function request_proxy_auth(requestDetails) {
-    /*let pending_requests = await get_local_data("pending_requests");
-    let proxy_server_realm = await get_config("proxy_server_realm", ["PhantomShuttle"]);
-    if (a.isProxy) return -1 !== pending_requests.indexOf(a.requestId) ? {
-        cancel: !0
-    } : (pending_requests.push(a.requestId), -1 !== proxy_server_realm.indexOf(a.realm)) ? get_proxy_auth() : get_user_proxy_auth(a)*/
+    let pending_requests = get_pending_requests();
+    if (typeof pending_requests == "undefined") {
+        pending_requests = [];
+    }
+    console.log('pending_requests: ' + pending_requests);
 
-    // new code
-    //let pending_requests = await get_local_data("pending_requests");
-    const a = get_pending_requests();
-    console.log('pending_requests: ' + a);
+    let realm = get_config("proxy_server_realm", ["PhantomShuttle"]);
+    console.log('realm: ' + realm);
 
-    const b = get_config("proxy_server_realm", ["PhantomShuttle"]);
-    console.log('realm: ' + b);
-
-    Promise.all([a, b]).then(values => {
-        let pending_requests = values[0];
-        let realm = values[1];
-
-        if (!requestDetails.isProxy) {
-            return;
-        }
-        if (pending_requests.indexOf(requestDetails.requestId) != -1) {
-            return {
-                cancel: true
-            };
-        }
-        pending_requests.push(requestDetails.requestId);
-        set_pending_requests(pending_requests);
-        // var realm = get_config('proxy_server_realm', ['Ghelper']);
-        if (realm.indexOf(requestDetails.realm) != -1) {
-            return get_proxy_auth();
-        } else {
-            return get_user_proxy_auth(requestDetails);
-        }
-        return {
-            cancel: true
-        };
-    });
-
-    /*if (!requestDetails.isProxy) {
+    if (!requestDetails.isProxy) {
         return;
     }
-    if (pending_requests.indexOf(requestDetails.requestId) != -1) {
+    if (pending_requests.indexOf(requestDetails.requestId) !== -1) {
         return {
             cancel: true
         };
@@ -98,37 +68,25 @@ function request_proxy_auth(requestDetails) {
     pending_requests.push(requestDetails.requestId);
     set_pending_requests(pending_requests);
     // var realm = get_config('proxy_server_realm', ['Ghelper']);
-    if (realm.indexOf(requestDetails.realm) != -1) {
+    if (realm.indexOf(requestDetails.realm) !== -1) {
         return get_proxy_auth();
     } else {
         return get_user_proxy_auth(requestDetails);
     }
     return {
         cancel: true
-    };*/
+    };
 }
 
 function request_completed(b) {
-    let pending_requests;
+    let pending_requests = [];
     chrome.storage.local.get('pending_requests', e=> {
+        console.log('pending_requests: ' + e.pending_requests);
         pending_requests = e.pending_requests;
     });
     if (pending_requests.indexOf(b.requestId) > -1) {
         pending_requests.splice(a, 1) // 删除一个元素
     }
-
-
-    // let pending_requests = await get_pending_requests();
-    //let a = pending_requests.indexOf(b.requestId);
-    //a > -1 && pending_requests.splice(a, 1) // 删除一个元素
-
-    /*chrome.storage.local.get("pending_requests", e=>{
-        let pending_requests = e.pending_requests;
-        if (pending_requests.indexOf(b.requestId) > -1) {
-            pending_requests.splice(a, 1);
-            set_local_data("pending_requests", pending_requests);
-        }
-    });*/
 }
 
 function get_config(name, default_value= null) {
@@ -143,21 +101,18 @@ function get_config(name, default_value= null) {
 }
 
 function get_session() {
-    let session;
+    let session = {};
     chrome.storage.local.get("session", e=>{
         session = e.session;
-        session = JSON.parse(session)
+        if (typeof (e.session) !== "undefined") {
+            session = JSON.parse(session)
+        }
     });
     return session;
-
-
-    /*let _session = await get_local_data("session");
-    let session = JSON.parse(_session);
-    return session;*/
 }
 
 function set_pending_requests(a) {
-    chrome.storage.local.set({"pending_requests":a});
+    chrome.storage.local.set({"pending_requests" : a});
 }
 
 function get_pending_requests() {
@@ -171,10 +126,11 @@ function get_pending_requests() {
         });
     });*/
     // return await get_local_data('pending_requests');
-    let pending_requests;
+    let pending_requests = [];
     chrome.storage.local.get("pending_requests", e=>{
-        pending_requests = e.pending_requests;
-        pending_requests = JSON.parse(pending_requests)
+        if (e.pending_requests.length > 0) {
+            pending_requests = e.pending_requests;
+        }
     });
     return pending_requests;
 }
@@ -206,10 +162,7 @@ function get_local_data(a) {
 }
 
 function get_proxy_auth() {
-    // let session = await get_chrome_session();
     let session = get_session();
-    //let _session = await get_local_data("session");
-    //let session = JSON.parse(_session);
     if (session && session.hasOwnProperty("token") && session.token.hasOwnProperty("ghelper_proxy_auth")) {
         return session.token.ghelper_proxy_auth;
     }
@@ -359,7 +312,11 @@ function api_url(b) {
     let api_urls;
     chrome.storage.local.get("api_urls", e => {
         console.log(typeof e.api_urls);
-        api_urls = JSON.parse(e.api_urls);
+        if (typeof (e.api_urls) !== "undefined") {
+            api_urls = JSON.parse(e.api_urls);
+        } else {
+            api_urls = ["https://api.phantomshuttle.space/api/v1","https://api.redsuns.live/api/api/v1"];
+        }
         console.log(typeof api_urls);
     });
 
@@ -415,12 +372,19 @@ function get_local_info() {
 
     chrome.storage.local.get("session", e=>{
         console.log("session: " + e.session);
-        let session = JSON.parse(e.session);
-        session.hasOwnProperty("token") && session.token.hasOwnProperty("token") && !local_info.token ? local_info.token = session.token.token : '';
-        session.hasOwnProperty("is_webtable_mode") ? local_info.is_webtable_mode = session.is_webtable_mode : -1;
-        session.hasOwnProperty("is_pac_mode") ? local_info.is_pac_mode = session.is_pac_mode : -1;
-        session.hasOwnProperty("is_overal_mode") ? local_info.is_overal_mode = session.is_overal_mode : -1;
-        session.hasOwnProperty("is_closed") ? local_info.is_closed = session.is_closed : -1;
+        if (typeof (e.session) !== "undefined") {
+            let session = JSON.parse(e.session);
+            session.hasOwnProperty("token") && session.token.hasOwnProperty("token") && !local_info.token ? local_info.token = session.token.token : '';
+            session.hasOwnProperty("is_webtable_mode") ? local_info.is_webtable_mode = session.is_webtable_mode : -1;
+            session.hasOwnProperty("is_pac_mode") ? local_info.is_pac_mode = session.is_pac_mode : -1;
+            session.hasOwnProperty("is_overal_mode") ? local_info.is_overal_mode = session.is_overal_mode : -1;
+            session.hasOwnProperty("is_closed") ? local_info.is_closed = session.is_closed : -1;
+        } else {
+            local_info.is_webtable_mode = -1;
+            local_info.is_pac_mode = -1;
+            local_info.is_overal_mode = -1;
+            local_info.is_closed = -1;
+        }
     });
 
     chrome.storage.local.get("session_sync_id", e=>{
