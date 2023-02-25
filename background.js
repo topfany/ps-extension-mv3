@@ -44,10 +44,10 @@ const _session = null;
 const pending_requests = [];
 
 set_local_data("api_urls", api_urls);
-// set_local_data("pending_requests", pending_requests);
-set_pending_requests([]);
+set_local_data("pending_requests", pending_requests);
+// set_pending_requests([]);
 
-async function request_proxy_auth(requestDetails) {
+function request_proxy_auth(requestDetails) {
     /*let pending_requests = await get_local_data("pending_requests");
     let proxy_server_realm = await get_config("proxy_server_realm", ["PhantomShuttle"]);
     if (a.isProxy) return -1 !== pending_requests.indexOf(a.requestId) ? {
@@ -55,14 +55,39 @@ async function request_proxy_auth(requestDetails) {
     } : (pending_requests.push(a.requestId), -1 !== proxy_server_realm.indexOf(a.realm)) ? get_proxy_auth() : get_user_proxy_auth(a)*/
 
     // new code
-    let pending_requests = await get_local_data("pending_requests");
-    let realm = await get_config("proxy_server_realm", ["PhantomShuttle"]);
+    //let pending_requests = await get_local_data("pending_requests");
+    const a = get_pending_requests();
+    console.log('pending_requests: ' + a);
 
-    // return get_proxy_auth();
+    const b = get_config("proxy_server_realm", ["PhantomShuttle"]);
+    console.log('realm: ' + b);
 
-    console.log('pending_requests: ' + pending_requests);
-    console.log('realm: ' + realm);
-    if (!requestDetails.isProxy) {
+    Promise.all([a, b]).then(values => {
+        let pending_requests = values[0];
+        let realm = values[1];
+
+        if (!requestDetails.isProxy) {
+            return;
+        }
+        if (pending_requests.indexOf(requestDetails.requestId) != -1) {
+            return {
+                cancel: true
+            };
+        }
+        pending_requests.push(requestDetails.requestId);
+        set_pending_requests(pending_requests);
+        // var realm = get_config('proxy_server_realm', ['Ghelper']);
+        if (realm.indexOf(requestDetails.realm) != -1) {
+            return get_proxy_auth();
+        } else {
+            return get_user_proxy_auth(requestDetails);
+        }
+        return {
+            cancel: true
+        };
+    });
+
+    /*if (!requestDetails.isProxy) {
         return;
     }
     if (pending_requests.indexOf(requestDetails.requestId) != -1) {
@@ -80,7 +105,30 @@ async function request_proxy_auth(requestDetails) {
     }
     return {
         cancel: true
-    };
+    };*/
+}
+
+function request_completed(b) {
+    let pending_requests;
+    chrome.storage.local.get('pending_requests', e=> {
+        pending_requests = e.pending_requests;
+    });
+    if (pending_requests.indexOf(b.requestId) > -1) {
+        pending_requests.splice(a, 1) // 删除一个元素
+    }
+
+
+    // let pending_requests = await get_pending_requests();
+    //let a = pending_requests.indexOf(b.requestId);
+    //a > -1 && pending_requests.splice(a, 1) // 删除一个元素
+
+    /*chrome.storage.local.get("pending_requests", e=>{
+        let pending_requests = e.pending_requests;
+        if (pending_requests.indexOf(b.requestId) > -1) {
+            pending_requests.splice(a, 1);
+            set_local_data("pending_requests", pending_requests);
+        }
+    });*/
 }
 
 function get_config(name, default_value= null) {
@@ -94,18 +142,26 @@ function get_config(name, default_value= null) {
     return default_value;
 }
 
-async function get_session() {
-    let _session = await get_local_data("session");
-    let session = JSON.parse(_session);
+function get_session() {
+    let session;
+    chrome.storage.local.get("session", e=>{
+        session = e.session;
+        session = JSON.parse(session)
+    });
     return session;
+
+
+    /*let _session = await get_local_data("session");
+    let session = JSON.parse(_session);
+    return session;*/
 }
 
 function set_pending_requests(a) {
     chrome.storage.local.set({"pending_requests":a});
 }
 
-async function get_pending_requests() {
-    return new Promise((resolve, reject) => {
+function get_pending_requests() {
+    /*return new Promise((resolve, reject) => {
         chrome.storage.local.get(['pending_requests'], (result) => {
             if (chrome.runtime.lastError) {
                 reject(chrome.runtime.lastError);
@@ -113,7 +169,14 @@ async function get_pending_requests() {
                 resolve(result.pending_requests);
             }
         });
+    });*/
+    // return await get_local_data('pending_requests');
+    let pending_requests;
+    chrome.storage.local.get("pending_requests", e=>{
+        pending_requests = e.pending_requests;
+        pending_requests = JSON.parse(pending_requests)
     });
+    return pending_requests;
 }
 
 function set_local_data(a, b) {
@@ -121,10 +184,16 @@ function set_local_data(a, b) {
     chrome.storage.local.set({[a]:JSON.stringify(b)});
 }
 
-async function get_local_data(a) {
+function get_local_data(a) {
     console.log('get local data of: ' + a);
-    chrome.storage.local.get(a, (e) => {console.log(e[a])});
-    return new Promise((resolve, reject) => {
+    let local_data;
+    chrome.storage.local.get(a, (e) => {
+        console.log(e[a]);
+        local_data = e[a];
+    });
+    return local_data;
+
+    /*return new Promise((resolve, reject) => {
         chrome.storage.local.get(a, (result) => {
             if (chrome.runtime.lastError) {
                 reject(chrome.runtime.lastError);
@@ -132,7 +201,7 @@ async function get_local_data(a) {
                 resolve(result[a]);
             }
         });
-    });
+    });*/
     // if (val = chrome.storage.local.get([a])) return JSON.parse(val)
 }
 
@@ -171,15 +240,6 @@ function get_user_proxy_auth(a) {
     }
 }
 
-async function request_completed(b) {
-    /*chrome.storage.local.get('pending_requests', e=> {
-        const pending_requests = e.pending_requests;
-    });*/
-    let pending_requests = await get_pending_requests();
-    let a = pending_requests.indexOf(b.requestId);
-    a > -1 && pending_requests.splice(a, 1) // 删除一个元素
-}
-
 /*function handle_message(a, c, b) {
     "reload" === a.action && (b(get_local_info()), session_reload()), "update" === a.action && (handle_background(a), b(get_local_info())), "local" === a.action && b(get_local_info())
 }*/
@@ -200,20 +260,20 @@ function handle_message(msg, sender, reply) {
 
 function session_start() {
     set_session_setup_status(0),
-    set_pk(""),
-    // set_local_data("api_urls", ""), // 因为变量在 service_worker 中无法持久化，因此不要在此处清空 api_urls 这个值
-    post("/session", {
-        action: "start"
-    }, handle_background, handle_session_restart)
+        set_pk(""),
+        // set_local_data("api_urls", ""), // 因为变量在 service_worker 中无法持久化，因此不要在此处清空 api_urls 这个值
+        post("/session", {
+            action: "start"
+        }, handle_background, handle_session_restart)
 }
 
 /*async function handle_session_restart() {
     sync_time = 3e4, (session_sync_id = await get_session_sync_id()) > 0 && (clearInterval(session_sync_id), set_session_sync_id(0)), set_session_sync_id(setInterval(session_start, sync_time))
 }*/
 
-async function handle_session_restart() {
+function handle_session_restart() {
     let sync_time = 30000;
-    let session_sync_id = await get_session_sync_id();
+    let session_sync_id = get_session_sync_id();
     if (session_sync_id > 0) {
         clearInterval(session_sync_id);
         set_session_sync_id(0);
@@ -235,18 +295,18 @@ function session_reload(call_func = handle_background) {
     }, call_func);
 }
 
-async function post(e, b = null, c = null, d = null, f = 15) {
-    let url = await api_url(e);
+function post(e, b = null, c = null, d = null, f = 15) {
+    let url = api_url(e);
     console.log('url: ' + url);
-    let a = {
+    let init = {
         method: "POST",
         body: JSON.stringify(b),
         mode: "cors",
         cache: "no-cache",
     };
     // b && (a.body = b), a.cache = 'no-cache', a.mode = 'cors';
-    console.log('init: ' + a);
-    await fetch(url, a).then(function (res) {
+    console.log('init: ' + init);
+    fetch(url, init).then(function (res) {
         if (res.status === 200) {
             return res.json()
         } else {
@@ -260,8 +320,8 @@ async function post(e, b = null, c = null, d = null, f = 15) {
     });
 }
 
-async function get(d, b = null, c = null, e = 5) {
-    let url = await api_url(d);
+function get(d, b = null, c = null, e = 5) {
+    let url = api_url(d);
     let a = {
         method: "GET",
         mode: "cors",
@@ -270,7 +330,7 @@ async function get(d, b = null, c = null, e = 5) {
     /*a.cache = !1, a.timeout = 1e4, a.async = !0, b && (a.success = b), (e -= 1) > 0 ? a.error = function(a) {
         api_url_reset(), get(d, b, c, e)
     } : c && (a.error = c), $.ajax(a)*/
-    await fetch(url, a).then(function (res) {
+    fetch(url, a).then(function (res) {
         if (res.status === 200) {
             return res.json()
         } else {
@@ -291,17 +351,35 @@ function getlang(a) {
     return chrome.i18n.getMessage(a)
 }
 
-async function api_url(b) {
-    let c = get_local_info();
+function api_url(b) {
+    let api_url;
+    let local_info = get_local_info();
+    let params = urlEncode(local_info);
+    params = trimUrlParam(params);
+    let api_urls;
+    chrome.storage.local.get("api_urls", e => {
+        console.log(typeof e.api_urls);
+        api_urls = JSON.parse(e.api_urls);
+        console.log(typeof api_urls);
+    });
+
+    if (api_urls && 0 !== api_urls.length) {
+        api_url = api_urls.shift() + b + "?" + params;
+        console.log('api_url: ' + api_url);
+        return api_url;
+    }
+
+
+    /*let c = get_local_info();
     let params = urlEncode(c);
     params = trimUrlParam(params);
     let a = await get_local_data("api_urls");
     a = JSON.parse(a);
+    console.log('local info: ' + c);
     console.log('a: ' + a);
-    // console.log('a.shift: ' + a.shift());
-    console.log('params url: ' + params);
+    console.log('params url: ' + params);*/
     // return a && 0 != a.length || (set_local_data("api_urls", api_urls), a = get_local_data("api_urls")), a.shift() + b + "?" + $.param(c)
-    return a && 0 !== a.length /*|| ((set_local_data("api_urls", api_urls), a = await get_local_data("api_urls"))*/, a.shift() + b + "?" + params
+    //return a && 0 !== a.length /*|| ((set_local_data("api_urls", api_urls), a = await get_local_data("api_urls"))*/, a.shift() + b + "?" + params
 }
 
 var urlEncode = function (param, key, encode) {
@@ -328,14 +406,53 @@ function get_proxy_info(a) {
     return get_local_data("proxy");
 }
 
-/*async function get_local_info() {
-    var a = {};
+function get_local_info() {
+    const local_info = {};
+    local_info.version = manifest.version;
+    chrome.storage.local.get("token", e=>{
+        local_info.token = e.token;
+    });
+
+    chrome.storage.local.get("session", e=>{
+        console.log("session: " + e.session);
+        let session = JSON.parse(e.session);
+        session.hasOwnProperty("token") && session.token.hasOwnProperty("token") && !local_info.token ? local_info.token = session.token.token : '';
+        session.hasOwnProperty("is_webtable_mode") ? local_info.is_webtable_mode = session.is_webtable_mode : -1;
+        session.hasOwnProperty("is_pac_mode") ? local_info.is_pac_mode = session.is_pac_mode : -1;
+        session.hasOwnProperty("is_overal_mode") ? local_info.is_overal_mode = session.is_overal_mode : -1;
+        session.hasOwnProperty("is_closed") ? local_info.is_closed = session.is_closed : -1;
+    });
+
+    chrome.storage.local.get("session_sync_id", e=>{
+        local_info.session_sync_id = e.session_sync_id;
+    });
+
+    chrome.storage.local.get("proxy", e=>{
+        local_info.proxy = e.proxy;
+    });
+
+    chrome.storage.local.get("internal", e=>{
+        local_info.internal = e.internal;
+    });
+
+    chrome.storage.local.get("pk", e=>{
+        local_info.pk = e.pk;
+    });
+
+    local_info['_t'] = get_time();
+
+    console.log('local_info: ' + local_info);
+
+    return local_info;
+
+
+    /*var a = {};
     return a.token = await get_token(),
         console.log('token: ' + a.token),
         a.version = manifest.version,
         /!*a.lang = window.navigator.language,*!/
-        a.session_sync_id = get_session_sync_id(),
-        a.is_webtable_mode = is_webtable_mode(),
+        a.session_sync_id = await get_session_sync_id(),
+        a.is_webtable_mode = await is_webtable_mode(),
         a.is_pac_mode = is_pac_mode(),
         a.is_overal_mode = is_overal_mode(),
         a.is_closed = is_closed(),
@@ -344,10 +461,10 @@ function get_proxy_info(a) {
         a.pk = get_pk(),
         a["_t"] = get_time(),
         console.log(a.internal),
-        a
-}*/
+        a*/
+}
 
-async function get_local_info() {
+/*async function get_local_info() {
     var data = {};
     data['token'] = await get_token();
     data['version'] = manifest.version;
@@ -362,14 +479,15 @@ async function get_local_info() {
     data['pk'] = await get_pk();
     data['_t'] = get_time();
     return data;
-}
+}*/
 
 function set_token(a) {
     chrome.storage.local.set({"token": a});
 }
 
-async function get_token() {
-    return new Promise((resolve, reject) => {
+function get_token() {
+    return get_local_data("token");
+    /*return new Promise((resolve, reject) => {
         chrome.storage.local.get(['token'], (result) => {
             if (chrome.runtime.lastError) {
                 reject(chrome.runtime.lastError);
@@ -377,15 +495,16 @@ async function get_token() {
                 resolve(result.token);
             }
         });
-    });
+    });*/
 }
 
 function set_session_sync_id(a) {
     chrome.storage.local.set({"session_sync_id": a});
 }
 
-async function get_session_sync_id() {
-    return new Promise((resolve, reject) => {
+function get_session_sync_id() {
+    return get_local_data("session_sync_id");
+    /*return new Promise((resolve, reject) => {
         chrome.storage.local.get(['session_sync_id'], (result) => {
             if (chrome.runtime.lastError) {
                 reject(chrome.runtime.lastError);
@@ -393,7 +512,7 @@ async function get_session_sync_id() {
                 resolve(result.session_sync_id);
             }
         });
-    });
+    });*/
 }
 
 function is_pac_mode() {
@@ -420,8 +539,9 @@ function set_pk(a) {
     chrome.storage.local.set({"pk": a});
 }
 
-async function get_pk() {
-    return new Promise((resolve, reject) => {
+function get_pk() {
+    return get_local_data("pk");
+    /*return new Promise((resolve, reject) => {
         chrome.storage.local.get(['pk'], (result) => {
             if (chrome.runtime.lastError) {
                 reject(chrome.runtime.lastError);
@@ -429,7 +549,7 @@ async function get_pk() {
                 resolve(result.pk);
             }
         });
-    });
+    });*/
 }
 
 function handle_background(a) {
@@ -474,10 +594,28 @@ function session_save_to_local(a) {
     set_local_data("session", a)
 }
 
-function set_proxy(a) {
-    return !!(a.hasOwnProperty("pac") || a.pac.hasOwnProperty("value")) && (a.pac.value.hasOwnProperty("pacScript") && a.pac.value.pacScript.hasOwnProperty("data") && (a = make_pac_script(a)), a.pac.hasOwnProperty("scope") && chrome.proxy.settings.set(a.pac, function(b) {
+function set_proxy(conf) {
+    /*return !!(a.hasOwnProperty("pac") || a.pac.hasOwnProperty("value")) && (a.pac.value.hasOwnProperty("pacScript") && a.pac.value.pacScript.hasOwnProperty("data") && (a = make_pac_script(a)), a.pac.hasOwnProperty("scope") && chrome.proxy.settings.set(a.pac, function(b) {
         set_pk(a.pk)
-    }), a.pac.value.hasOwnProperty("proxyType") && (chrome.proxy.settings.set(a.pac), set_pk(a.pk)), checking(), !0)
+    }), a.pac.value.hasOwnProperty("proxyType") && (chrome.proxy.settings.set(a.pac), set_pk(a.pk)), checking(), !0)*/
+
+    if (!conf.hasOwnProperty('pac') && !conf.pac.hasOwnProperty('value')) {
+        return false;
+    }
+    if (conf.pac.value.hasOwnProperty('pacScript') && conf.pac.value.pacScript.hasOwnProperty('data')) {
+        conf = make_pac_script(conf);
+    }
+    if (conf.pac.hasOwnProperty('scope')) {
+        chrome.proxy.settings.set(conf.pac, function(req) {
+            set_pk(conf.pk);
+        });
+    }
+    if (conf.pac.value.hasOwnProperty('proxyType')) {
+        browser.proxy.settings.set(conf.pac);
+        set_pk(conf.pk);
+    }
+    checking();
+    return true;
 }
 
 /*function checking() {
