@@ -43,14 +43,51 @@ const pending_requests = [];
 set_local_data("api_urls", api_urls);
 set_local_data("pending_requests", pending_requests);
 
-function request_proxy_auth(requestDetails) {
+function request_proxy_auth(requestDetails, callback) {
     // 直接返回下面的authCredentials验证信息是可以成功的，
-    // 原因可能是 blocking 是同步阻断代码知道回调函数完成，
+    // 原因可能是 blocking 是同步阻断代码直到回调函数完成，
     // 而回调函数中有 chrome.storage.local.set 和 chrome.storage.local.get 等异步函数接口
+    // 2023.02.28 00:15 原因确实是 chrome.storage.local.get 无法在回调函数中返回数据
     /*return {
         authCredentials: { username: 'topfany', password: '963852wei' }
     };*/
-    var pending_requests = get_pending_requests();
+
+    function gotCredentials(data) {
+        var session = {};
+        if (typeof data.session != "undefined") {
+            session = JSON.parse(data.session);
+        }
+        if (session.hasOwnProperty("token") && session.token.hasOwnProperty("ghelper_proxy_auth")) {
+            var proxy_auth = session.token.ghelper_proxy_auth;
+            console.log('proxy_auth: ');
+            console.log(proxy_auth);
+            callback(proxy_auth);
+        } else {
+            console.log('session data in request proxy auth: ');
+            console.log(data.session);
+        }
+    }
+
+    chrome.storage.local.get("session", gotCredentials);
+
+    /*chrome.storage.local.get("session", data => {
+        var session = {};
+        if (typeof data.session != "undefined") {
+            session = JSON.parse(data.session);
+        }
+        if (session.hasOwnProperty("token") && session.token.hasOwnProperty("ghelper_proxy_auth")) {
+            var proxy_auth = session.token.ghelper_proxy_auth;
+            console.log('proxy_auth: ');
+            console.log(proxy_auth);
+            return proxy_auth;
+        } else {
+            console.log('session data in request proxy auth: ');
+            console.log(data.session);
+        }
+    });*/
+
+    /*var pending_requests = get_pending_requests();
+
     if (typeof pending_requests == "undefined") {
         pending_requests = [];
     }
@@ -65,17 +102,21 @@ function request_proxy_auth(requestDetails) {
 
     if (session && session.hasOwnProperty("token") && session.token.hasOwnProperty("ghelper_proxy_auth")) {
         proxy_auth = session.token.ghelper_proxy_auth;
-        console.log('proxy_auth: ');
+        console.log('proxy_auth correct: ');
         console.log(proxy_auth);
     } else {
         proxy_auth = {
             cancel: !0
         }
+        console.log('proxy_auth cancel: ');
+        console.log(proxy_auth);
     }
 
-    if (requestDetails.isProxy) return -1 != pending_requests.indexOf(requestDetails.requestId) ? {
-        cancel: !0
-    } : (pending_requests.push(requestDetails.requestId),set_pending_requests(pending_requests), -1 != realm.indexOf(requestDetails.realm)) ? proxy_auth : get_user_proxy_auth(requestDetails)
+    return proxy_auth;
+    return {
+        authCredentials: { username: 'topfany', password: '963852wei' }
+    };
+
     /*if (requestDetails.isProxy) return -1 != pending_requests.indexOf(requestDetails.requestId) ? {
         cancel: !0
     } : (pending_requests.push(requestDetails.requestId),set_pending_requests(pending_requests), -1 != get_config("proxy_server_realm", ["PhantomShuttle"]).indexOf(requestDetails.realm)) ? get_proxy_auth() : get_user_proxy_auth(requestDetails)*/
@@ -105,16 +146,22 @@ function get_config(name, default_value= null) {
 }
 
 function get_session() {
-    var session = {};
+    var aaa;
     chrome.storage.local.get("session", e=>{
-        session = e.session;
+        console.log('get_session here');
+        console.log(e.session);
+        aaa = e.session;
+        /*var session = e.session;
         if (typeof (e.session) !== "undefined") {
-            // console.log('get_session here');
-            // console.log(session);
-            session = JSON.parse(session)
-        }
+            console.log('get_session here');
+            console.log(session);
+            _session = JSON.parse(session)
+        }*/
     });
-    return session;
+    // _session = JSON.parse(_session);
+    console.log('return session: ');
+    console.log(aaa);
+    return _session;
 }
 
 function set_pending_requests(a) {
@@ -152,10 +199,7 @@ function get_proxy_auth() {
         var proxy_auth = session.token.ghelper_proxy_auth;
         console.log('proxy_auth: ');
         console.log(proxy_auth);
-        return {
-            authCredentials: { username: 'topfany', password: '963852wei' }
-        };
-        // return session.token.ghelper_proxy_auth;
+        return session.token.ghelper_proxy_auth;
     }
     return {
         cancel: !0
@@ -173,6 +217,7 @@ function get_chrome_session() {
 }
 
 function get_user_proxy_auth(a) {
+    var session;
     if ((session = get_session()).hasOwnProperty("user_proxy_auth")) {
         var c = a.challenger.host,
             d = a.challenger.port,
@@ -457,6 +502,17 @@ function session_setup(a) {
     var d = get_config("session_sync_time", 9e5);
     var session_sync_id;
     (session_sync_id = get_session_sync_id()) > 0 && (clearInterval(session_sync_id), set_session_sync_id(0)), set_session_sync_id(setInterval(session_reload, d)), set_session_setup_status(1)
+    /*var proxy_auth;
+    if (a.hasOwnProperty("token") && a.token.hasOwnProperty("ghelper_proxy_auth")) {
+        proxy_auth = a.token.ghelper_proxy_auth;
+        console.log('proxy_auth: ');
+        console.log(proxy_auth);
+    } else {
+        proxy_auth = {
+            cancel: !0
+        }
+    }
+    set_local_data("proxy_auth", proxy_auth);*/
 }
 
 function session_save_to_local(a) {
