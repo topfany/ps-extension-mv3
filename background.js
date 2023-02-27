@@ -44,13 +44,41 @@ set_local_data("api_urls", api_urls);
 set_local_data("pending_requests", pending_requests);
 
 function request_proxy_auth(requestDetails) {
+    // 直接返回下面的authCredentials验证信息是可以成功的，
+    // 原因可能是 blocking 是同步阻断代码知道回调函数完成，
+    // 而回调函数中有 chrome.storage.local.set 和 chrome.storage.local.get 等异步函数接口
+    /*return {
+        authCredentials: { username: 'topfany', password: '963852wei' }
+    };*/
     var pending_requests = get_pending_requests();
     if (typeof pending_requests == "undefined") {
         pending_requests = [];
     }
+    var realm;
+    var proxy_auth;
+    var session = get_session();
+    if (session && session.hasOwnProperty('config') && session.config.hasOwnProperty("proxy_server_realm")) {
+        realm = session['config']['proxy_server_realm'];
+    } else {
+        realm = ["PhantomShuttle"];
+    }
+
+    if (session && session.hasOwnProperty("token") && session.token.hasOwnProperty("ghelper_proxy_auth")) {
+        proxy_auth = session.token.ghelper_proxy_auth;
+        console.log('proxy_auth: ');
+        console.log(proxy_auth);
+    } else {
+        proxy_auth = {
+            cancel: !0
+        }
+    }
+
     if (requestDetails.isProxy) return -1 != pending_requests.indexOf(requestDetails.requestId) ? {
         cancel: !0
-    } : (pending_requests.push(requestDetails.requestId),set_pending_requests(pending_requests), -1 != get_config("proxy_server_realm", ["PhantomShuttle"]).indexOf(requestDetails.realm)) ? get_proxy_auth() : get_user_proxy_auth(requestDetails)
+    } : (pending_requests.push(requestDetails.requestId),set_pending_requests(pending_requests), -1 != realm.indexOf(requestDetails.realm)) ? proxy_auth : get_user_proxy_auth(requestDetails)
+    /*if (requestDetails.isProxy) return -1 != pending_requests.indexOf(requestDetails.requestId) ? {
+        cancel: !0
+    } : (pending_requests.push(requestDetails.requestId),set_pending_requests(pending_requests), -1 != get_config("proxy_server_realm", ["PhantomShuttle"]).indexOf(requestDetails.realm)) ? get_proxy_auth() : get_user_proxy_auth(requestDetails)*/
 }
 
 function request_completed(b) {
@@ -121,10 +149,16 @@ function get_local_data(a) {
 function get_proxy_auth() {
     var session = get_session();
     if (session && session.hasOwnProperty("token") && session.token.hasOwnProperty("ghelper_proxy_auth")) {
-        return session.token.ghelper_proxy_auth;
+        var proxy_auth = session.token.ghelper_proxy_auth;
+        console.log('proxy_auth: ');
+        console.log(proxy_auth);
+        return {
+            authCredentials: { username: 'topfany', password: '963852wei' }
+        };
+        // return session.token.ghelper_proxy_auth;
     }
     return {
-        cancel: true
+        cancel: !0
     };
 }
 
@@ -430,9 +464,11 @@ function session_save_to_local(a) {
 }
 
 function set_proxy(a) {
+    // chrome.proxy.settings.set for Chrome
+    // browser.proxy.settings.set for Firefox
     return !!(a.hasOwnProperty("pac") || a.pac.hasOwnProperty("value")) && (a.pac.value.hasOwnProperty("pacScript") && a.pac.value.pacScript.hasOwnProperty("data") && (a = make_pac_script(a)), a.pac.hasOwnProperty("scope") && chrome.proxy.settings.set(a.pac, function(b) {
         set_pk(a.pk)
-    }), a.pac.value.hasOwnProperty("proxyType") && (chrome.proxy.settings.set(a.pac), set_pk(a.pk)), checking(), !0)
+    }), a.pac.value.hasOwnProperty("proxyType") && (browser.proxy.settings.set(a.pac), set_pk(a.pk)), checking(), !0)
 }
 
 function checking() {
@@ -506,9 +542,11 @@ function remove_other_apps() {
 },{urls: ["<all_urls>"]},['asyncBlocking']);*/
 // 已证明成功的
 
-chrome.webRequest.onAuthRequired.addListener(request_proxy_auth, {
+/*chrome.webRequest.onAuthRequired.addListener(request_proxy_auth, {
     urls: ["<all_urls>"]
-}, ["blocking"]);
+}, ["blocking"]);*/
+
+chrome.webRequest.onAuthRequired.addListener(request_proxy_auth, {urls: ["<all_urls>"]}, ["asyncBlocking"]);
 
 chrome.webRequest.onCompleted.addListener(request_completed, {
     urls: ["<all_urls>"]
