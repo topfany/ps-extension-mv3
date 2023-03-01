@@ -1,7 +1,7 @@
 const manifest = chrome.runtime.getManifest();
 // console.log('manifest: ' + JSON.stringify(manifest));
 const doh_servers = ["https://api.phantomshuttle.space/api/v1/resolve"];
-const api_urls = ["https://api.phantomshuttle.space/api/v1","https://api.redsuns.live/api/api/v1"];
+const api_urls = ["https://api.phantomshuttle.space/api/v1","https://api.redsuns.live/api/v1"];
 const _tester_data = {};
 const _session = null;
 const pending_requests = [];
@@ -154,7 +154,7 @@ function session_reload(call_func = handle_background) {
 function post(e, b = null, c = null, d = null, f = 15) {
     chrome.storage.local.get(["session", "api_urls", "session_sync_id", "proxy", "internal", "pk"], data => {
         var local_info = {};
-        var api_urls = ["https://api.phantomshuttle.space/api/v1","https://api.redsuns.live/api/api/v1"];
+        var api_urls = ["https://api.phantomshuttle.space/api/v1","https://api.redsuns.live/api/v1"];
         var session;
         if (data.hasOwnProperty("session")) {
             session = data.session;
@@ -204,25 +204,26 @@ function post(e, b = null, c = null, d = null, f = 15) {
             }
         }).then(function(data) {
             // console.log('fetch result data: ');
-            console.log(data);
+            // console.log(data);
             c(data)
         }).catch(function(err) {
             // console.log('fetch error: ');
             console.log(err);
+
+            f = f - 1;
+            if (f > 0) {
+                if (api_urls.length === 0) {
+                    api_urls = ["https://api.phantomshuttle.space/api/v1","https://api.redsuns.live/api/v1"];
+                }
+                var new_api_urls = JSON.stringify(api_urls);
+                chrome.storage.local.set({'api_urls': new_api_urls}).then((req) =>{
+                    setTimeout(function() {
+                        post(e, b, c, d, f);
+                    }, 3000);
+                });
+            }
         });
     });
-
-    /*f = f - 1
-    if (f > 0) {
-        conf['error'] = function(err) {
-            api_url_reset();
-            post(uri, data, success_func, error_func, try_time);
-        }
-    } else {
-        if (error_func) {
-            conf['error'] = error_func;
-        }
-    }*/
 }
 
 function get_time() {
@@ -401,13 +402,16 @@ function get_domainsUsingProxy_data() {
 function remove_other_apps() {
     var myid = chrome.runtime.id;
     chrome.management.getAll(function(apps) {
-        $.each(apps, function(no, app) {
-            myid != app.id && app.enabled && $.each(app.permissions, function(n, pname) {
-                if (pname == 'proxy') {
+        for(i in apps) {
+            var app = apps[i];
+            if(myid == app.id || !app.enabled) {continue;}
+            for(i2 in app.permissions) {
+                if(app.permissions[i2] == 'proxy') {
                     chrome.management.setEnabled(app.id, false);
+                    console.log('remove app:', app.name);
                 }
-            });
-        });
+            }
+        }
     });
 }
 
@@ -421,7 +425,7 @@ chrome.webRequest.onErrorOccurred.addListener(request_completed, {
     urls: ["<all_urls>"]
 });
 
-// remove_other_apps();
+remove_other_apps();
 
 set_proxy_system();
 
